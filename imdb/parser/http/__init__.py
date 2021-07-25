@@ -29,15 +29,17 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 import re
 import socket
 import ssl
-from codecs import lookup
 import warnings
+from codecs import lookup
 
-from imdb import PY2
+import socks
+from sockshandler import SocksiPyHandler
+
 from imdb import IMDbBase
-from imdb.utils import analyze_title
-from imdb.parser.http.logging import logger
+from imdb import PY2
 from imdb._exceptions import IMDbDataAccessError, IMDbParserError
-
+from imdb.parser.http.logging import logger
+from imdb.utils import analyze_title
 from . import (
     companyParser,
     movieParser,
@@ -57,8 +59,6 @@ if PY2:
 else:
     from urllib.parse import quote_plus
     from urllib.request import HTTPSHandler, ProxyHandler, build_opener
-    from sockshandler import SocksiPyHandler
-    import socks
 
 # Logger for miscellaneous functions.
 _aux_logger = logger.getChild('aux')
@@ -176,7 +176,7 @@ class IMDbURLopener:
                 proxy_path = "%s://%s" % (self.proxies[key]["proto"], self.proxies[key]["host"])
                 if self.proxies[key]["port"]:
                     proxy_path = "%s:%s" % (proxy_path, self.proxies[key]["port"])
-                return  proxy_path
+                return proxy_path
         else:
             return ""
 
@@ -190,9 +190,11 @@ class IMDbURLopener:
                 if "http" in url_parsed["proto"]:
                     self.proxies['http'] = proxy
                 elif "socks5" in url_parsed["proto"]:
-                    self.proxies["socks5"] = {"proto":url_parsed["proto"],"host": url_parsed["host"], "port": url_parsed["port"]}
+                    self.proxies["socks5"] = {"proto": url_parsed["proto"], "host": url_parsed["host"],
+                                              "port": url_parsed["port"]}
                 elif "socks4" in url_parsed["proto"]:
-                    self.proxies["socks4"] = {"proto":url_parsed["proto"],"host": url_parsed["host"], "port": url_parsed["port"]}
+                    self.proxies["socks4"] = {"proto": url_parsed["proto"], "host": url_parsed["host"],
+                                              "port": url_parsed["port"]}
                 else:
                     self._logger.error("%s is not supported currently" % url_parsed["proto"])
             else:
@@ -646,7 +648,7 @@ class IMDbHTTPAccessSystem(IMDbBase):
         temp_d = self.mProxy.season_episodes_parser.parse(cont)
         if isinstance(season_nums, int):
             season_nums = {season_nums}
-        elif (isinstance(season_nums, (list, tuple)) or 
+        elif (isinstance(season_nums, (list, tuple)) or
               not hasattr(season_nums, '__contains__')):
             season_nums = set(season_nums)
         if not temp_d and 'data' in temp_d:
