@@ -57,6 +57,8 @@ if PY2:
 else:
     from urllib.parse import quote_plus
     from urllib.request import HTTPSHandler, ProxyHandler, build_opener
+    from sockshandler import SocksiPyHandler
+    import socks
 
 # Logger for miscellaneous functions.
 _aux_logger = logger.getChild('aux')
@@ -167,17 +169,34 @@ class IMDbURLopener:
 
     def get_proxy(self):
         """Return the used proxy, or an empty string."""
-        return self.proxies.get('http', '')
+        if "http" in self.proxies:
+            return self.proxies.get('http', '')
+        elif self.proxies:
+            for key in self.proxies:
+                proxy_path = "%s://%s" % (self.proxies[key]["proto"], self.proxies[key]["host"])
+                if self.proxies[key]["port"]:
+                    proxy_path = "%s:%s" % (proxy_path, self.proxies[key]["port"])
+                return  proxy_path
+        else:
+            return ""
 
     def set_proxy(self, proxy):
-        """Set the proxy."""
-        if not proxy:
-            if 'http' in self.proxies:
-                del self.proxies['http']
-        else:
-            if not bool(re.match("^[a-z0-9]*?:\/\/",proxy)):
-                proxy = 'http://%s' % proxy
-            self.proxies['http'] = proxy
+        self.proxies.clear()
+        if proxy != None:
+            proxy = proxy.lower()
+            url_pattern = r"^(?P<proto>.*):\/\/(?P<host>[A-Za-z0-9\-\.]+)(?:\:(?P<port>[0-9]+))?(.*)$"
+            url_parsed = re.match(url_pattern, proxy)
+            if bool(url_parsed):
+                if "http" in url_parsed["proto"]:
+                    self.proxies['http'] = proxy
+                elif "socks5" in url_parsed["proto"]:
+                    self.proxies["socks5"] = {"proto":url_parsed["proto"],"host": url_parsed["host"], "port": url_parsed["port"]}
+                elif "socks4" in url_parsed["proto"]:
+                    self.proxies["socks4"] = {"proto":url_parsed["proto"],"host": url_parsed["host"], "port": url_parsed["port"]}
+                else:
+                    self._logger.error("%s is not supported currently" % url_parsed["proto"])
+            else:
+                self.proxies['http'] = 'http://%s' % proxy
 
     def set_header(self, header, value, _overwrite=True):
         """Set a default header."""
@@ -209,12 +228,24 @@ class IMDbURLopener:
             if size != -1:
                 self.set_header('Range', 'bytes=0-%d' % size)
             handlers = []
+
             if 'http' in self.proxies:
                 proxy_handler = ProxyHandler({
                     'http': self.proxies['http'],
                     'https': self.proxies['http']
                 })
                 handlers.append(proxy_handler)
+            elif "socks4" in self.proxies:
+                pass
+                socks4_handler = SocksiPyHandler(socks.PROXY_TYPE_SOCKS4,
+                                                 self.proxies["socks4"]["host"], int(self.proxies["socks4"]["port"]))
+                self._urllib_opener = build_opener(socks4_handler)
+                handlers.append(socks4_handler)
+            elif "socks5" in self.proxies:
+                socks5_handler = SocksiPyHandler(socks.PROXY_TYPE_SOCKS5,
+                                                 self.proxies["socks5"]["host"], int(self.proxies["socks5"]["port"]))
+                handlers.append(socks5_handler)
+
             handlers.append(self.https_handler)
             uopener = build_opener(*handlers)
             uopener.addheaders = list(self.addheaders)
