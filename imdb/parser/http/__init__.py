@@ -26,6 +26,7 @@ or "html" (this is the default).
 
 from __future__ import absolute_import, division, print_function, unicode_literals
 
+import re
 import socket
 import ssl
 from codecs import lookup
@@ -174,7 +175,7 @@ class IMDbURLopener:
             if 'http' in self.proxies:
                 del self.proxies['http']
         else:
-            if not proxy.lower().startswith('http://'):
+            if not bool(re.match("^[a-z0-9]*?:\/\/",proxy)):
                 proxy = 'http://%s' % proxy
             self.proxies['http'] = proxy
 
